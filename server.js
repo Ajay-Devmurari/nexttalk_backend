@@ -44,21 +44,46 @@ io.on("connection", (socket) => {
   console.log("🟢 A user connected:", socket.id);
 
   // ==========================================
-  // TASK 4: JOIN QUEUE (Searching Logic)
+  // TASK 5: JOIN QUEUE & MATCHING BRAIN
   // ==========================================
   socket.on("joinQueue", async () => {
     try {
       console.log(`🔄 User ${socket.id} is looking for a match...`);
 
-      // 1. User ko Redis List (Queue) me daal do
+      // 1. Pehle current user ko Queue me daal do
       await redis.lpush("nexttalk_queue", socket.id);
 
-      // 2. User ko Flutter app me batao ki "Searching" chalu kardo
-      socket.emit("searching");
+      // 2. Check karo kitne log queue me hain
+      const queueLength = await redis.llen("nexttalk_queue");
 
-      // NOTE: Agar queue me 2 log ho jaye, toh match karna (Task 5) yahi par hoga!
+      // 3. Agar 2 ya 2 se zyada log hain, toh MATCH kardo!
+      if (queueLength >= 2) {
+        // Queue se 2 users ko bahar nikalo (Jo pehle se wait kar rahe the unko priority do)
+        const user1Id = await redis.rpop("nexttalk_queue");
+        const user2Id = await redis.rpop("nexttalk_queue");
+
+        // Safety Check: Agar dono same user nahi hain (rare case)
+        if (user1Id && user2Id && user1Id !== user2Id) {
+          // 4. Ek unique Room ID generate karo
+          const roomId = `room_${Date.now()}`;
+
+          console.log(
+            `✅ Match Found! 🎉 Room: ${roomId} | Users: ${user1Id} & ${user2Id}`,
+          );
+
+          // 5. Dono users ko "match_found" event bhejo unke private rooms me
+          io.to(user1Id).emit("match_found", { roomId: roomId });
+          io.to(user2Id).emit("match_found", { roomId: roomId });
+        } else {
+          // Agar koi error ho, toh user ko wapas searching status par daal do
+          socket.emit("searching");
+        }
+      } else {
+        // Agar sirf 1 user hai (wo khud hai), toh usko bolo "Ruko, searching chalu hai"
+        socket.emit("searching");
+      }
     } catch (error) {
-      console.error("Redis Queue Error:", error);
+      console.error("Redis Matching Error:", error);
     }
   });
 
@@ -69,13 +94,14 @@ io.on("connection", (socket) => {
     console.log("🔴 User disconnected:", socket.id);
 
     try {
-      // Agar user chat chhod ke chala jaye, toh use Redis queue se bhi hata do
+      // Agar user band kar de, toh use queue se hata do taki kisi aur ko match na ho jaye
       await redis.lrem("nexttalk_queue", 0, socket.id);
     } catch (error) {
       console.error("Redis Remove Error:", error);
     }
   });
 });
+l̥;
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
