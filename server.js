@@ -33,6 +33,7 @@ app.get("/", (req, res) => {
 });
 
 // Redis Connection Test
+// Redis Connection Test
 app.get("/test-redis", async (req, res) => {
   try {
     await redis.set("test_key", "Hello from NextTalk!");
@@ -42,6 +43,7 @@ app.get("/test-redis", async (req, res) => {
     res.send(`Redis Error: ${error.message}`);
   }
 });
+l̥;
 
 // ==========================================
 // SOCKET.IO REAL-TIME EVENTS
