@@ -79,6 +79,24 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ==========================================
+  // TASK 7: REAL-TIME TEXT CHAT LOGIC
+  // ==========================================
+
+  // ✅ Jab user chat room me enter kare
+  socket.on("joinRoom", (roomId) => {
+    socket.join(roomId);
+    console.log(`👥 User ${socket.id} joined room: ${roomId}`);
+  });
+
+  // ✅ Jab user message bheje
+  socket.on("sendMessage", (data) => {
+    // data me roomId aur text aayega
+    // socket.to(roomId) se message us room ke SABKO bhejega (BHEJNE WALE KO CHHOD KE)
+    socket.to(data["roomId"]).emit("receiveMessage", data["text"]);
+  });
+
+  // (Purana joinQueue aur disconnect code iske upar rahega)
   // DISCONNECT LOGIC
   socket.on("disconnect", async () => {
     console.log("🔴 User disconnected:", socket.id);
