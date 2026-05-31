@@ -1,27 +1,52 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io"); // ✅ Socket.io import kiya
+const { Server } = require("socket.io");
 const cors = require("cors");
+const { Redis } = require("@upstash/redis"); // ✅ Redis import
 
 const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
 
-// ✅ Socket.io setup kiya aur CORS allow kiya globally
+// ✅ Socket.io Setup (CORS allowed for Flutter)
 const io = new Server(server, {
   cors: {
-    origin: "*", // Abhi ke liye sabko allow (Flutter web/mobile dono ke liye)
+    origin: "*", // Production me yahan sirf apna Flutter web URL denge
     methods: ["GET", "POST"],
   },
 });
 
-// Simple Test Route (Render par check karne ke liye)
-app.get("/", (req, res) => {
-  res.send("NextTalk Backend & Socket.io is Running 🚀");
+// ✅ Upstash Redis Setup (Render ke Environment Variables se connect hoga)
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// ✅ Socket.io Connection Listener
+// ==========================================
+// TEST ROUTES
+// ==========================================
+
+// Basic Server Test
+app.get("/", (req, res) => {
+  res.send("NextTalk Backend, Socket.io & Redis are Running 🚀");
+});
+
+// Redis Connection Test
+app.get("/test-redis", async (req, res) => {
+  try {
+    await redis.set("test_key", "Hello from NextTalk!");
+    const value = await redis.get("test_key");
+    res.send(`Redis Test Successful! Value: ${value}`);
+  } catch (error) {
+    res.send(`Redis Error: ${error.message}`);
+  }
+});
+
+// ==========================================
+// SOCKET.IO REAL-TIME EVENTS
+// ==========================================
+
 io.on("connection", (socket) => {
   console.log("🟢 A user connected:", socket.id);
 
@@ -30,6 +55,10 @@ io.on("connection", (socket) => {
     console.log("🔴 User disconnected:", socket.id);
   });
 });
+
+// ==========================================
+// SERVER START
+// ==========================================
 
 // Render dynamically port deta hai, isliye process.env.PORT zaroori hai
 const PORT = process.env.PORT || 3000;
