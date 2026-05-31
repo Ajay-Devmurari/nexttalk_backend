@@ -37,6 +37,9 @@ app.get("/test-redis", async (req, res) => {
   }
 });
 
+// ==========================================
+// SOCKET.IO REAL-TIME EVENTS
+// ==========================================
 io.on("connection", (socket) => {
   console.log("🟢 A user connected:", socket.id);
 
@@ -54,7 +57,6 @@ io.on("connection", (socket) => {
       socket.emit("searching");
 
       // NOTE: Agar queue me 2 log ho jaye, toh match karna (Task 5) yahi par hoga!
-      // Hum Task 5 me is function me matching logic add karenge.
     } catch (error) {
       console.error("Redis Queue Error:", error);
     }
@@ -74,6 +76,7 @@ io.on("connection", (socket) => {
     }
   });
 });
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
