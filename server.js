@@ -40,11 +40,40 @@ app.get("/test-redis", async (req, res) => {
 io.on("connection", (socket) => {
   console.log("🟢 A user connected:", socket.id);
 
-  socket.on("disconnect", () => {
+  // ==========================================
+  // TASK 4: JOIN QUEUE (Searching Logic)
+  // ==========================================
+  socket.on("joinQueue", async () => {
+    try {
+      console.log(`🔄 User ${socket.id} is looking for a match...`);
+
+      // 1. User ko Redis List (Queue) me daal do
+      await redis.lpush("nexttalk_queue", socket.id);
+
+      // 2. User ko Flutter app me batao ki "Searching" chalu kardo
+      socket.emit("searching");
+
+      // NOTE: Agar queue me 2 log ho jaye, toh match karna (Task 5) yahi par hoga!
+      // Hum Task 5 me is function me matching logic add karenge.
+    } catch (error) {
+      console.error("Redis Queue Error:", error);
+    }
+  });
+
+  // ==========================================
+  // DISCONNECT LOGIC (Cleanup)
+  // ==========================================
+  socket.on("disconnect", async () => {
     console.log("🔴 User disconnected:", socket.id);
+
+    try {
+      // Agar user chat chhod ke chala jaye, toh use Redis queue se bhi hata do
+      await redis.lrem("nexttalk_queue", 0, socket.id);
+    } catch (error) {
+      console.error("Redis Remove Error:", error);
+    }
   });
 });
-
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
