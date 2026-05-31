@@ -38,15 +38,26 @@ app.get("/test-redis", async (req, res) => {
 });
 
 // ==========================================
-// SOCKET.IO REAL-TIME EVENTS (WITH MATCHING)
+// SOCKET.IO REAL-TIME EVENTS
 // ==========================================
 io.on("connection", (socket) => {
   console.log("🟢 A user connected:", socket.id);
 
-  // JOIN QUEUE & MATCHING BRAIN
+  // ✅ NAYA: User apna naam aur UID bhejega connection ke baad
+  socket.on("authenticate", (data) => {
+    socket.uid = data.uid;
+    socket.displayName = data.displayName;
+    console.log(`👤 User Authenticated: ${socket.displayName} (${socket.uid})`);
+  });
+
+  // ==========================================
+  // JOIN QUEUE & MATCHING BRAIN (Updated)
+  // ==========================================
   socket.on("joinQueue", async () => {
     try {
-      console.log(`🔄 User ${socket.id} is looking for a match...`);
+      console.log(
+        `🔄 User ${socket.displayName || socket.id} is looking for a match...`,
+      );
 
       // 1. User ko Queue me daal do
       await redis.lpush("nexttalk_queue", socket.id);
@@ -61,12 +72,27 @@ io.on("connection", (socket) => {
 
         if (user1Id && user2Id && user1Id !== user2Id) {
           const roomId = `room_${Date.now()}`;
+
+          // ✅ NAYA: Dono users ka data nikalo
+          const user1Socket = io.sockets.sockets.get(user1Id);
+          const user2Socket = io.sockets.sockets.get(user2Id);
+
           console.log(
-            `✅ Match Found! 🎉 Room: ${roomId} | Users: ${user1Id} & ${user2Id}`,
+            `✅ Match Found! 🎉 Room: ${roomId} | Users: ${user1Socket?.displayName} & ${user2Socket?.displayName}`,
           );
 
-          io.to(user1Id).emit("match_found", { roomId: roomId });
-          io.to(user2Id).emit("match_found", { roomId: roomId });
+          // ✅ NAYA: Match found event me Stranger ka Naam aur UID bhejo
+          io.to(user1Id).emit("match_found", {
+            roomId: roomId,
+            strangerName: user2Socket?.displayName || "Stranger",
+            strangerUid: user2Socket?.uid || "",
+          });
+
+          io.to(user2Id).emit("match_found", {
+            roomId: roomId,
+            strangerName: user1Socket?.displayName || "Stranger",
+            strangerUid: user1Socket?.uid || "",
+          });
         } else {
           socket.emit("searching");
         }
@@ -80,13 +106,15 @@ io.on("connection", (socket) => {
   });
 
   // ==========================================
-  // TASK 7: REAL-TIME TEXT CHAT LOGIC
+  // REAL-TIME TEXT CHAT LOGIC
   // ==========================================
 
   // ✅ Jab user chat room me enter kare
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
-    console.log(`👥 User ${socket.id} joined room: ${roomId}`);
+    console.log(
+      `👥 User ${socket.displayName || socket.id} joined room: ${roomId}`,
+    );
   });
 
   // ✅ Jab user message bheje
@@ -96,8 +124,9 @@ io.on("connection", (socket) => {
     socket.to(data["roomId"]).emit("receiveMessage", data["text"]);
   });
 
-  // (Purana joinQueue aur disconnect code iske upar rahega)
+  // ==========================================
   // DISCONNECT LOGIC
+  // ==========================================
   socket.on("disconnect", async () => {
     console.log("🔴 User disconnected:", socket.id);
     try {
