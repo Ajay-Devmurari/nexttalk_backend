@@ -137,6 +137,20 @@ io.on("connection", (socket) => {
   });
 });
 
+// Tumhare server.js me existing socket.io code ke andar ye add karo
+
+socket.on("skip_stranger", (data) => {
+  const { roomId } = data;
+
+  if (roomId) {
+    // ✅ Broadcast to the OTHER user in the room that they have been skipped
+    socket.to(roomId).emit("stranger_skipped");
+
+    // Optional: Undon ko room se bhi nikal do
+    // socket.leave(roomId);
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
