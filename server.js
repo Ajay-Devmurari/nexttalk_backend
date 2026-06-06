@@ -155,6 +155,7 @@
 // server.listen(PORT, () => {
 //   console.log(`🚀 Server is running on port ${PORT}`);
 // });
+
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
@@ -164,14 +165,10 @@ const { Redis } = require("@upstash/redis");
 
 const app = express();
 app.use(cors());
-
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 const redis = new Redis({
@@ -179,49 +176,19 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
 });
 
-// ==========================================
-// API ROUTES
-// ==========================================
-
-app.get("/", (req, res) => {
-  res.send("NextTalk Backend, Socket.io & Redis are Running 🚀");
-});
-
-app.get("/test-redis", async (req, res) => {
-  try {
-    await redis.set("test_key", "Hello from NextTalk!");
-    const value = await redis.get("test_key");
-    res.send(`Redis Test Successful! Value: ${value}`);
-  } catch (error) {
-    res.send(`Redis Error: ${error.message}`);
-  }
-});
-
-// ==========================================
-// SOCKET.IO EVENTS
-// ==========================================
+app.get("/", (req, res) => res.send("NextTalk Backend Running 🚀"));
 
 io.on("connection", (socket) => {
   console.log("🟢 User Connected:", socket.id);
 
-  // ==========================================
-  // AUTHENTICATION
-  // ==========================================
-
   socket.on("authenticate", (data) => {
     socket.uid = data.uid;
     socket.displayName = data.displayName;
-    console.log(`👤 Authenticated: ${socket.displayName} (${socket.uid})`);
+    console.log(`👤 Auth: ${socket.displayName}`);
   });
-
-  // ==========================================
-  // JOIN QUEUE & MATCHING
-  // ==========================================
 
   socket.on("joinQueue", async () => {
     try {
-      console.log(`🔍 Searching Match For: ${socket.displayName || socket.id}`);
-
       await redis.lpush("nexttalk_queue", socket.id);
       const queueLength = await redis.llen("nexttalk_queue");
 
@@ -231,21 +198,13 @@ io.on("connection", (socket) => {
 
         if (user1Id && user2Id && user1Id !== user2Id) {
           const roomId = `room_${Date.now()}`;
-
           const user1Socket = io.sockets.sockets.get(user1Id);
           const user2Socket = io.sockets.sockets.get(user2Id);
 
-          if (!user1Socket || !user2Socket) {
-            return;
-          }
+          if (!user1Socket || !user2Socket) return;
 
-          // Join both users to room
           user1Socket.join(roomId);
           user2Socket.join(roomId);
-
-          console.log(
-            `✅ Match Found | Room: ${roomId} | ${user1Socket.displayName} ↔ ${user2Socket.displayName}`,
-          );
 
           io.to(user1Id).emit("match_found", {
             roomId,
@@ -267,100 +226,33 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ==========================================
-  // ROOM JOIN
-  // ==========================================
-
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
     console.log(`👥 ${socket.displayName || socket.id} joined ${roomId}`);
   });
 
-  // ==========================================
-  // CHAT MESSAGE
-  // ==========================================
-
-  socket.on("sendMessage", (data) => {
-    socket.to(data.roomId).emit("receiveMessage", data.text);
-  });
-
-  // ==========================================
-  // TYPING INDICATOR (✅ FIX: Moved Inside Connection Block)
-  // ==========================================
-
-  // socket.on("typing", ({ roomId }) => {
-  //   if (roomId) {
-  //     // Broadcast to the other person in the room
-  //     socket.to(roomId).emit("stranger_typing");
-  //   }
-  // });
-
-  // // ==========================================
-  // // SKIP STRANGER
-  // // ==========================================
-
-  // socket.on("skip_stranger", ({ roomId }) => {
-  //   console.log(`⏭️ ${socket.displayName || socket.id} skipped stranger`);
-
-  //   if (roomId) {
-  //     // Notify stranger
-  //     socket.to(roomId).emit("stranger_skipped");
-  //     // Leave room
-  //     socket.leave(roomId);
-  //   }
-  // });
-
-  // ==========================================
-  // TYPING INDICATOR
-  // ==========================================
+  // ✅ TYPING EVENT
   socket.on("typing", (data) => {
-    console.log("⌨️ TYPING EVENT RECEIVED FROM:", socket.id, "Data:", data);
     const roomId = data?.roomId;
     if (roomId) {
-      console.log("➡️ Emitting stranger_typing to room:", roomId);
       socket.to(roomId).emit("stranger_typing");
-    } else {
-      console.log("❌ TYPING ERROR: roomId is missing!");
     }
   });
 
-  // ==========================================
-  // SKIP STRANGER
-  // ==========================================
+  // ✅ SKIP EVENT
   socket.on("skip_stranger", (data) => {
-    console.log("⏭️ SKIP EVENT RECEIVED FROM:", socket.id, "Data:", data);
     const roomId = data?.roomId;
-
     if (roomId) {
-      console.log("➡️ Emitting stranger_skipped to room:", roomId);
       socket.to(roomId).emit("stranger_skipped");
       socket.leave(roomId);
-    } else {
-      console.log("❌ SKIP ERROR: roomId is missing!");
     }
   });
-
-  // ==========================================
-  // DISCONNECT
-  // ==========================================
 
   socket.on("disconnect", async () => {
-    console.log("🔴 User Disconnected:", socket.id);
-
-    try {
-      await redis.lrem("nexttalk_queue", 0, socket.id);
-    } catch (error) {
-      console.error("Redis Remove Error:", error.message);
-    }
+    console.log("🔴 Disconnected:", socket.id);
+    await redis.lrem("nexttalk_queue", 0, socket.id);
   });
-}); // ✅ io.on("connection") block ends here
-
-// ==========================================
-// START SERVER
-// ==========================================
+});
 
 const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, () => {
-  console.log(`🚀 Server Running On Port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
