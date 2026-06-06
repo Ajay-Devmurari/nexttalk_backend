@@ -168,7 +168,10 @@ app.use(cors());
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "*", // Allow Flutter web/app
+    methods: ["GET", "POST"],
+  },
 });
 
 const redis = new Redis({
@@ -176,19 +179,30 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
 });
 
-app.get("/", (req, res) => res.send("NextTalk Backend Running 🚀"));
+// ==========================================
+// API ROUTES
+// ==========================================
+app.get("/", (req, res) => {
+  res.send("NextTalk Backend, Socket.io & Redis are Running 🚀");
+});
 
+// ==========================================
+// SOCKET.IO EVENTS
+// ==========================================
 io.on("connection", (socket) => {
   console.log("🟢 User Connected:", socket.id);
 
+  // 1. Authentication
   socket.on("authenticate", (data) => {
     socket.uid = data.uid;
     socket.displayName = data.displayName;
     console.log(`👤 Auth: ${socket.displayName}`);
   });
 
+  // 2. Join Queue & Matching
   socket.on("joinQueue", async () => {
     try {
+      console.log(`🔍 Searching: ${socket.displayName || socket.id}`);
       await redis.lpush("nexttalk_queue", socket.id);
       const queueLength = await redis.llen("nexttalk_queue");
 
@@ -203,8 +217,13 @@ io.on("connection", (socket) => {
 
           if (!user1Socket || !user2Socket) return;
 
+          // Join both to socket room
           user1Socket.join(roomId);
           user2Socket.join(roomId);
+
+          console.log(
+            `✅ Match Found | Room: ${roomId} | ${user1Socket.displayName} ↔ ${user2Socket.displayName}`,
+          );
 
           io.to(user1Id).emit("match_found", {
             roomId,
@@ -226,33 +245,51 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 3. Join Room (Safety re-join from client)
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
     console.log(`👥 ${socket.displayName || socket.id} joined ${roomId}`);
   });
 
-  // ✅ TYPING EVENT
+  // 4. Chat Message
+  socket.on("sendMessage", (data) => {
+    socket.to(data.roomId).emit("receiveMessage", data.text);
+  });
+
+  // 5. Typing Indicator
   socket.on("typing", (data) => {
     const roomId = data?.roomId;
     if (roomId) {
+      console.log(`⌨️ Typing in room: ${roomId}`);
       socket.to(roomId).emit("stranger_typing");
     }
   });
 
-  // ✅ SKIP EVENT
+  // 6. Skip Stranger
   socket.on("skip_stranger", (data) => {
     const roomId = data?.roomId;
     if (roomId) {
+      console.log(`⏭️ Skip in room: ${roomId}`);
       socket.to(roomId).emit("stranger_skipped");
       socket.leave(roomId);
     }
   });
 
+  // 7. Disconnect
   socket.on("disconnect", async () => {
-    console.log("🔴 Disconnected:", socket.id);
-    await redis.lrem("nexttalk_queue", 0, socket.id);
+    console.log("🔴 User Disconnected:", socket.id);
+    try {
+      await redis.lrem("nexttalk_queue", 0, socket.id);
+    } catch (error) {
+      console.error("Redis Remove Error:", error.message);
+    }
   });
 });
 
+// ==========================================
+// START SERVER
+// ==========================================
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`🚀 Server Running On Port ${PORT}`);
+});
