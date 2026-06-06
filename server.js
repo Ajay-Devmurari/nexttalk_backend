@@ -155,7 +155,6 @@
 // server.listen(PORT, () => {
 //   console.log(`🚀 Server is running on port ${PORT}`);
 // });
-
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
@@ -192,7 +191,6 @@ app.get("/test-redis", async (req, res) => {
   try {
     await redis.set("test_key", "Hello from NextTalk!");
     const value = await redis.get("test_key");
-
     res.send(`Redis Test Successful! Value: ${value}`);
   } catch (error) {
     res.send(`Redis Error: ${error.message}`);
@@ -213,7 +211,6 @@ io.on("connection", (socket) => {
   socket.on("authenticate", (data) => {
     socket.uid = data.uid;
     socket.displayName = data.displayName;
-
     console.log(`👤 Authenticated: ${socket.displayName} (${socket.uid})`);
   });
 
@@ -226,7 +223,6 @@ io.on("connection", (socket) => {
       console.log(`🔍 Searching Match For: ${socket.displayName || socket.id}`);
 
       await redis.lpush("nexttalk_queue", socket.id);
-
       const queueLength = await redis.llen("nexttalk_queue");
 
       if (queueLength >= 2) {
@@ -237,7 +233,6 @@ io.on("connection", (socket) => {
           const roomId = `room_${Date.now()}`;
 
           const user1Socket = io.sockets.sockets.get(user1Id);
-
           const user2Socket = io.sockets.sockets.get(user2Id);
 
           if (!user1Socket || !user2Socket) {
@@ -278,7 +273,6 @@ io.on("connection", (socket) => {
 
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
-
     console.log(`👥 ${socket.displayName || socket.id} joined ${roomId}`);
   });
 
@@ -291,6 +285,17 @@ io.on("connection", (socket) => {
   });
 
   // ==========================================
+  // TYPING INDICATOR (✅ FIX: Moved Inside Connection Block)
+  // ==========================================
+
+  socket.on("typing", ({ roomId }) => {
+    if (roomId) {
+      // Broadcast to the other person in the room
+      socket.to(roomId).emit("stranger_typing");
+    }
+  });
+
+  // ==========================================
   // SKIP STRANGER
   // ==========================================
 
@@ -300,7 +305,6 @@ io.on("connection", (socket) => {
     if (roomId) {
       // Notify stranger
       socket.to(roomId).emit("stranger_skipped");
-
       // Leave room
       socket.leave(roomId);
     }
@@ -319,17 +323,7 @@ io.on("connection", (socket) => {
       console.error("Redis Remove Error:", error.message);
     }
   });
-});
-
-// Tumhare existing socket.io connection code ke andar ye add karo
-
-socket.on("typing", (data) => {
-  const { roomId } = data;
-  if (roomId) {
-    // ✅ Sirf room me dusre user ko bhejo (Broadcast to others in room)
-    socket.to(roomId).emit("stranger_typing");
-  }
-});
+}); // ✅ io.on("connection") block ends here
 
 // ==========================================
 // START SERVER
