@@ -288,25 +288,55 @@ io.on("connection", (socket) => {
   // TYPING INDICATOR (✅ FIX: Moved Inside Connection Block)
   // ==========================================
 
-  socket.on("typing", ({ roomId }) => {
+  // socket.on("typing", ({ roomId }) => {
+  //   if (roomId) {
+  //     // Broadcast to the other person in the room
+  //     socket.to(roomId).emit("stranger_typing");
+  //   }
+  // });
+
+  // // ==========================================
+  // // SKIP STRANGER
+  // // ==========================================
+
+  // socket.on("skip_stranger", ({ roomId }) => {
+  //   console.log(`⏭️ ${socket.displayName || socket.id} skipped stranger`);
+
+  //   if (roomId) {
+  //     // Notify stranger
+  //     socket.to(roomId).emit("stranger_skipped");
+  //     // Leave room
+  //     socket.leave(roomId);
+  //   }
+  // });
+
+  // ==========================================
+  // TYPING INDICATOR
+  // ==========================================
+  socket.on("typing", (data) => {
+    console.log("⌨️ TYPING EVENT RECEIVED FROM:", socket.id, "Data:", data);
+    const roomId = data?.roomId;
     if (roomId) {
-      // Broadcast to the other person in the room
+      console.log("➡️ Emitting stranger_typing to room:", roomId);
       socket.to(roomId).emit("stranger_typing");
+    } else {
+      console.log("❌ TYPING ERROR: roomId is missing!");
     }
   });
 
   // ==========================================
   // SKIP STRANGER
   // ==========================================
-
-  socket.on("skip_stranger", ({ roomId }) => {
-    console.log(`⏭️ ${socket.displayName || socket.id} skipped stranger`);
+  socket.on("skip_stranger", (data) => {
+    console.log("⏭️ SKIP EVENT RECEIVED FROM:", socket.id, "Data:", data);
+    const roomId = data?.roomId;
 
     if (roomId) {
-      // Notify stranger
+      console.log("➡️ Emitting stranger_skipped to room:", roomId);
       socket.to(roomId).emit("stranger_skipped");
-      // Leave room
       socket.leave(roomId);
+    } else {
+      console.log("❌ SKIP ERROR: roomId is missing!");
     }
   });
 
