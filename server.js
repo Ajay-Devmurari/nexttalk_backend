@@ -321,6 +321,16 @@ io.on("connection", (socket) => {
   });
 });
 
+// Tumhare existing socket.io connection code ke andar ye add karo
+
+socket.on("typing", (data) => {
+  const { roomId } = data;
+  if (roomId) {
+    // ✅ Sirf room me dusre user ko bhejo (Broadcast to others in room)
+    socket.to(roomId).emit("stranger_typing");
+  }
+});
+
 // ==========================================
 // START SERVER
 // ==========================================
